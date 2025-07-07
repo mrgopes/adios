@@ -19,12 +19,15 @@ abstract class Column implements \JsonSerializable
   protected string $format = '';
   protected string $description = '';
   protected mixed $defaultValue = null;
+  protected array $examples = [];
   protected array $enumValues = [];
   protected array $enumCssClasses = [];
   protected array $predefinedValues = [];
   protected string $colorScale = '';
   protected string $cssClass = '';
   protected string $tableCellRenderer = '';
+  protected string $lookupModel = '';
+  protected string $reactComponent = '';
 
   protected array $properties = [];
 
@@ -33,6 +36,12 @@ abstract class Column implements \JsonSerializable
     $this->model = $model;
     $this->title = $title;
   }
+
+  public function getProperty(string $pName): mixed { return $this->properties[$pName] ?? null; }
+  public function setProperty(string $pName, mixed $pValue): Column { $this->properties[$pName] = $pValue; return $this; }
+
+  public function getReactComponent(): string { return $this->reactComponent; }
+  public function setReactComponent(string $reactComponent): Column { $this->reactComponent = $reactComponent; return $this; }
 
   public function getType(): string { return $this->type; }
   public function setType(string $type): Column { $this->type = $type; return $this; }
@@ -67,6 +76,9 @@ abstract class Column implements \JsonSerializable
   public function getDescription(): string { return $this->description; }
   public function setDescription(string $description): Column { $this->description = $description; return $this; }
 
+  public function getExamples(): array { return $this->examples; }
+  public function setExamples(array $examples): Column { $this->examples = $examples; return $this; }
+
   public function getEnumValues(): array { return $this->enumValues; }
   public function setEnumValues(array $enumValues): Column { $this->enumValues = $enumValues; return $this; }
 
@@ -88,11 +100,16 @@ abstract class Column implements \JsonSerializable
   public function getTableCellRenderer(): string { return $this->tableCellRenderer; }
   public function setTableCellRenderer(string $tableCellRenderer): Column { $this->tableCellRenderer = $tableCellRenderer; return $this; }
 
+  public function getLookupModel(): string { return $this->lookupModel; }
+  public function setLookupModel(string $lookupModel): Column { $this->lookupModel = $lookupModel; return $this; }
+
   public function describeInput(): \ADIOS\Core\Description\Input
   {
     $description = new \ADIOS\Core\Description\Input();
     $description->setType($this->getType());
     if (!empty($this->getTitle())) $description->setTitle($this->getTitle());
+    if (!empty($this->getReactComponent())) $description->setReactComponent($this->getReactComponent());
+    if (!empty($this->getCssClass())) $description->setCssClass($this->getCssClass());
     if (!empty($this->getPlaceholder())) $description->setPlaceholder($this->getPlaceholder());
     if (!empty($this->getReadonly())) $description->setReadonly($this->getReadonly());
     if (!empty($this->getRequired())) $description->setRequired($this->getRequired());
@@ -100,11 +117,35 @@ abstract class Column implements \JsonSerializable
     if (!empty($this->getUnit())) $description->setUnit($this->getUnit());
     if (!empty($this->getFormat())) $description->setFormat($this->getFormat());
     if (!empty($this->getTableCellRenderer())) $description->setTableCellRenderer($this->getTableCellRenderer());
+    if (!empty($this->getLookupModel())) $description->setLookupModel($this->getLookupModel());
     if ($this->defaultValue !== null) $description->setDefaultValue($this->defaultValue);
+    $description->setExamples($this->examples);
     $description->setEnumValues($this->enumValues);
     $description->setEnumCssClasses($this->enumCssClasses);
     $description->setPredefinedValues($this->predefinedValues);
+
+    foreach ($this->properties as $pName => $pValue) $description->setProperty($pName, $pValue);
+
     return $description;
+  }
+
+  public function loadFromArray(array $columnConfig): Column
+  {
+    if (isset($columnConfig['title'])) $this->setTitle($columnConfig['title']);
+    if (isset($columnConfig['reactComponent'])) $this->setTitle($columnConfig['reactComponent']);
+    if (isset($columnConfig['placeholder'])) $this->setPlaceholder($columnConfig['placeholder']);
+    if (isset($columnConfig['readonly'])) $this->setRequired($columnConfig['readonly']);
+    if (isset($columnConfig['required'])) $this->setTitle($columnConfig['required']);
+    if (isset($columnConfig['description'])) $this->setDescription($columnConfig['description']);
+    if (isset($columnConfig['unit'])) $this->setUnit($columnConfig['unit']);
+    if (isset($columnConfig['format'])) $this->setFormat($columnConfig['format']);
+    if (isset($columnConfig['defaultValue'])) $this->setDefaultValue($columnConfig['defaultValue']);
+    if (isset($columnConfig['examples'])) $this->setExamples($columnConfig['examples']);
+    if (isset($columnConfig['enumValues'])) $this->setEnumValues($columnConfig['enumValues']);
+    if (isset($columnConfig['enumCssClasses'])) $this->setEnumCssClasses($columnConfig['enumCssClasses']);
+    if (isset($columnConfig['predefinedValues'])) $this->setPredefinedValues($columnConfig['predefinedValues']);
+    if (isset($columnConfig['lookupModel'])) $this->setLookupModel($columnConfig['lookupModel']);
+    return $this;
   }
 
   public function jsonSerialize(): array
@@ -122,6 +163,7 @@ abstract class Column implements \JsonSerializable
       'colorScale' => $this->colorScale,
       'cssClass' => $this->cssClass,
       'tableCellRenderer' => $this->tableCellRenderer,
+      'reactComponent' => $this->reactComponent,
     ];
 
     if (count($this->enumValues) > 0) $column['enumValues'] = $this->enumValues;

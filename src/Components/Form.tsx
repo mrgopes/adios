@@ -207,7 +207,6 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       if (p.canRead) permissions.canRead = p.canRead;
       if (p.canUpdate) permissions.canUpdate = p.canUpdate;
       if (p.canDelete) permissions.canDelete = p.canDelete;
-      console.log('state.perm', permissions);
     }
 
     if (this.props?.description?.permissions) {
@@ -216,7 +215,6 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       if (p.canRead) permissions.canRead = p.canRead;
       if (p.canUpdate) permissions.canUpdate = p.canUpdate;
       if (p.canDelete) permissions.canDelete = p.canDelete;
-      console.log('props.perm', permissions);
     }
 
     if (customPermissions) {
@@ -225,10 +223,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       if (p.canRead) permissions.canRead = p.canRead;
       if (p.canUpdate) permissions.canUpdate = p.canUpdate;
       if (p.canDelete) permissions.canDelete = p.canDelete;
-      console.log('cust.perm', permissions);
     }
-
-    console.log(permissions);
 
     return permissions;
   }
@@ -622,6 +617,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       description: inputDescription,
       value: value,
       invalid: this.state.invalidInputs[inputName] ?? false,
+      cssClass: inputs[inputName]?.cssClass,
       readonly: this.props.readonly || inputs[inputName]?.readonly || inputs[inputName]?.disabled,
       uid: this.props.uid + '_' + uuid.v4(),
       parentForm: this,
@@ -880,7 +876,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     </>
   }
 
-  renderWarningsOrErrors() {
+  renderWarningsOrErrors(): null|JSX.Element {
     if (this.state.recordDeleted) {
       return <>
         <div className="alert alert-danger m-1">
@@ -904,6 +900,8 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
         </div>
       </>
     }
+
+    return null;
   }
 
   render() {

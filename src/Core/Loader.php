@@ -654,7 +654,7 @@ class Loader
     } catch (\ADIOS\Core\Exceptions\NotEnoughPermissionsException $e) {
       $message = $e->getMessage();
       if ($this->auth->isUserInSession()) {
-        $message .= " Hint: Sign out and sign in again. {$this->config->getAsString('accountUrl')}?sign-out";
+        $message .= " Hint: Sign out and sign in again. {$this->config->getAsString('rootUrl')}?sign-out";
       }
       return $this->renderFatal($message, false);
       // header('HTTP/1.1 401 Unauthorized', true, 401);
@@ -1057,6 +1057,12 @@ class Loader
   public function urlParamAsArray(string $paramName, array $defaultValue = []): array
   {
     if (isset($this->params[$paramName])) return (array) $this->params[$paramName];
+    else return $defaultValue;
+  }
+
+  public function uploadedFile(string $paramName, ?array $defaultValue = null): null|array
+  {
+    if (isset($this->uploadedFiles[$paramName])) return $this->uploadedFiles[$paramName];
     else return $defaultValue;
   }
 

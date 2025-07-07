@@ -18,13 +18,17 @@ class Input implements \JsonSerializable
   protected string $reactComponent = '';
   protected string $lookupModel = '';
   protected array $extendedProps = [];
+  protected array $examples = [];
   protected array $enumValues = [];
   protected array $enumCssClasses = [];
   protected array $predefinedValues = [];
   protected mixed $defaultValue = null;
+  protected string $cssClass = '';
 
-  /** @var array<string, \ADIOS\Core\Description\InputProperty> */
   protected array $properties = [];
+
+  public function getProperty(string $pName): mixed { return $this->properties[$pName] ?? null; }
+  public function setProperty(string $pName, mixed $pValue): Input { $this->properties[$pName] = $pValue; return $this; }
 
   public function getType(): string { return $this->type; }
   public function setType(string $type): Input { $this->type = $type; return $this; }
@@ -62,6 +66,9 @@ class Input implements \JsonSerializable
   public function getExtendedProps(): array { return $this->extendedProps; }
   public function setExtendedProps(array $extendedProps): Input { $this->extendedProps = $extendedProps; return $this; }
 
+  public function getExamples(): array { return $this->examples; }
+  public function setExamples(array $examples): Input { $this->examples = $examples; return $this; }
+
   public function getEnumValues(): array { return $this->enumValues; }
   public function setEnumValues(array $enumValues): Input { $this->enumValues = $enumValues; return $this; }
 
@@ -71,11 +78,11 @@ class Input implements \JsonSerializable
   public function getPredefinedValues(): array { return $this->predefinedValues; }
   public function setPredefinedValues(array $predefinedValues): Input { $this->predefinedValues = $predefinedValues; return $this; }
 
-  public function getProperty(string $name): InputProperty { return $this->properties[$name]; }
-  public function setProperty(string $propertyName, InputProperty $property): Input { $this->properties[$propertyName] = $property; return $this; }
-
   public function getDefaultValue(): mixed { return $this->defaultValue; }
   public function setDefaultValue(mixed $defaultValue): Input { $this->defaultValue = $defaultValue; return $this; }
+
+  public function getCssClass(): string { return $this->cssClass; }
+  public function setCssClass(string $cssClass): Input { $this->cssClass = $cssClass; return $this; }
 
   public function jsonSerialize(): array
   {
@@ -94,9 +101,10 @@ class Input implements \JsonSerializable
     if (!empty($this->enumCssClasses)) $json['enumCssClasses'] = $this->enumCssClasses;
     if (!empty($this->predefinedValues)) $json['predefinedValues'] = $this->predefinedValues;
     if (!empty($this->defaultValue)) $json['defaultValue'] = $this->defaultValue;
+    if (!empty($this->cssClass)) $json['cssClass'] = $this->cssClass;
 
-    foreach ($this->properties as $name => $property) {
-      $json[$name] = $property->jsonSerialize();
+    foreach ($this->properties as $pName => $pValue) {
+      $json[$pName] = (string) $pName;
     }
 
     return $json;

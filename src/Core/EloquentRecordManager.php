@@ -47,7 +47,7 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
 
   public function getPermissions(array $record): array
   {
-    $permissions = [true, true, true, true];
+    return [true, true, true, true];
   }
 
   /**
@@ -67,16 +67,22 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
     foreach ($this->model->getColumns() as $colName => $column) {
       $colDefinition = $column->toArray();
       if ((bool) ($colDefinition['hidden'] ?? false)) continue;
-      $selectRaw[] = $this->model->table . '.' . $colName;
 
-      if (isset($colDefinition['enumValues']) && is_array($colDefinition['enumValues'])) {
-        $tmpSelect = "CASE";
-        foreach ($colDefinition['enumValues'] as $eKey => $eVal) {
-          $tmpSelect .= " WHEN `{$this->model->table}`.`{$colName}` = '{$eKey}' THEN '{$eVal}'";
+      if ($colDefinition['type'] == 'virtual') {
+        $virtSql = $column->getProperty('sql');
+        if (!empty($virtSql)) $selectRaw[] = '(' . $virtSql . ') as `' . $colName . '`';
+      } else {
+        $selectRaw[] = $this->model->table . '.' . $colName;
+
+        if (isset($colDefinition['enumValues']) && is_array($colDefinition['enumValues'])) {
+          $tmpSelect = "CASE";
+          foreach ($colDefinition['enumValues'] as $eKey => $eVal) {
+            $tmpSelect .= " WHEN `{$this->model->table}`.`{$colName}` = '{$eKey}' THEN '{$eVal}'";
+          }
+          $tmpSelect .= " ELSE '' END AS `_ENUM[{$colName}]`";
+
+          $selectRaw[] = $tmpSelect;
         }
-        $tmpSelect .= " ELSE '' END AS `_ENUM[{$colName}]`";
-
-        $selectRaw[] = $tmpSelect;
       }
     }
 
@@ -123,13 +129,13 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
     }
 
     // TODO: Toto je pravdepodobne potencialna SQL injection diera. Opravit.
-    $query = $query->selectRaw(join(',', $selectRaw)); //->with($withs);
+    $query = $query->selectRaw(join(",\n", $selectRaw)); //->with($withs);
     foreach ($this->model->relations as $relName => $relDefinition) {
       // if (count($this->relationsToRead) > 0 && !in_array($relName, $this->relationsToRead)) continue;
 
       $relModel = new $relDefinition[1]($this->app);
 
-      if ($level <= $this->maxReadLevel) {
+      if ($level < $this->maxReadLevel) {
         $query->with([$relName => function($q) use($relModel, $level) {
           return $relModel->record->prepareReadQuery($q, $level + 1);
         }]);
@@ -152,11 +158,12 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
     $query = $this;
 
     if (!empty($search)) {
-      $query = $query->where(function($q) use ($search) {
-        foreach ($this->model->columnNames() as $columnName) {
-          $q->orWhere($this->model->table . '.' . $columnName, 'LIKE', '%' . $search . '%');
-        }
-      });
+      // $query = $query->where(function($q) use ($search) {
+      //   foreach ($this->model->columnNames() as $columnName) {
+      //     $q->orWhere($this->model->table . '.' . $columnName, 'LIKE', '%' . $search . '%');
+      //   }
+      // });
+      $query = $query->having('_LOOKUP', 'like', '%'.$search.'%');
     }
 
     $selectRaw = [];
@@ -347,21 +354,28 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
 
   public function recordCreate(array $record): array
   {
+    $record = $this->model->onBeforeCreate($record);
     unset($record['id']);
     $normalizedRecord = $this->recordNormalize($record);
     $record['id'] = $this->create($normalizedRecord)->id;
+    $record = $this->model->onAfterCreate($record);
     return $record;
   }
 
-  public function recordUpdate(array $record): array
+  public function recordUpdate(array $record, array $originalRecord = []): array
   {
+    // $originalRecord = $record;
+    $record = $this->model->onBeforeUpdate($record);
     $normalizedRecord = $this->recordNormalize($record);
     $this->find((int) ($record['id'] ?? 0))->update($normalizedRecord);
+    $record = $this->model->onAfterUpdate($originalRecord, $record);
     return $record;
   }
 
   public function recordDelete(int|string $id): int
   {
+    $this->model->onBeforeDelete((int) $id);
+
     $record = $this->recordRead($this->where('id', $id));
     $permissions = $this->getPermissions($record);
     if (!$permissions[3]) { // cannot delete
@@ -369,6 +383,9 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
     }
 
     $this->where('id', $id)->delete();
+
+    $this->model->onAfterDelete((int) $id);
+
     return 1; // TODO: return $rowsAffected
   }
 
@@ -409,18 +426,12 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
       }
 
       if ((bool) ($record['_toBeDeleted_'] ?? false)) {
-        $this->model->onBeforeDelete((int) $id);
         $this->recordDelete((int) $savedRecord['id']);
-        $this->model->onAfterDelete((int) $id);
         return [];
       } else if ($isCreate) {
-        $savedRecord = $this->model->onBeforeCreate($savedRecord);
         $savedRecord = $this->recordCreate($savedRecord);
-        $savedRecord = $this->model->onAfterCreate($originalRecord, $savedRecord);
       } else {
-        $savedRecord = $this->model->onBeforeUpdate($savedRecord);
-        $savedRecord = $this->recordUpdate($savedRecord);
-        $savedRecord = $this->model->onAfterUpdate($originalRecord, $savedRecord);
+        $savedRecord = $this->recordUpdate($savedRecord, $originalRecord);
       }
 
       foreach ($this->model->relations as $relName => $relDefinition) {
@@ -545,8 +556,13 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
       if (!isset($columns[$colName])) {
         unset($record[$colName]);
       } else {
-        $record[$colName] = $columns[$colName]->normalize($record[$colName]);
-        if ($record[$colName] === null) unset($record[$colName]);
+        $colDefinition = $columns[$colName]->toArray();
+        if ($colDefinition['type'] == 'virtual') {
+          unset($record[$colName]);
+        } else {
+          $record[$colName] = $columns[$colName]->normalize($record[$colName]);
+          if ($record[$colName] === null) unset($record[$colName]);
+        }
       }
     }
 
