@@ -42,6 +42,7 @@ export interface FormRecord {
 }
 
 export interface FormUi {
+  templateJson?: string,
   title?: string,
   subTitle?: string,
   showSaveButton?: boolean;
@@ -62,6 +63,11 @@ export interface FormDescription {
   includeRelations?: Array<string>,
 }
 
+export interface FormTabs {
+  title: string,
+  icon: string,
+}
+
 export interface FormProps {
   isInitialized?: boolean,
   parentTable?: any,
@@ -77,6 +83,9 @@ export interface FormProps {
   showInModalSimple?: boolean,
   isInlineEditing?: boolean,
   customEndpointParams?: any,
+
+  tabs?: FormTabs,
+  activeTab?: string,
 
   tag?: string,
   context?: any,
@@ -101,6 +110,9 @@ export interface FormState {
   readonly?: boolean,
   content?: Content,
 
+  tabs?: FormTabs,
+  activeTab?: string,
+
   description: FormDescription,
   record: FormRecord,
   endpoint: FormEndpoint,
@@ -113,7 +125,6 @@ export interface FormState {
   deleteButtonDisabled: boolean,
   isInlineEditing: boolean,
   invalidInputs: Object,
-  tabs?: any,
   folderUrl?: string,
   params: any,
   invalidRecordId: boolean,
@@ -138,6 +149,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
   components: Array<React.JSX.Element> = [];
   translationContext: string = 'form';
 
+  // DEPRECATED
   jsxContentRendered: boolean = false;
   jsxContent: JSX.Element;
 
@@ -186,7 +198,9 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       customEndpointParams: props.customEndpointParams ?? {},
       recordChanged: false,
       deleteButtonDisabled: false,
-      permissions: this.calculatePermissions()
+      permissions: this.calculatePermissions(),
+      tabs: this.props.tabs,
+      activeTab: this.props.activeTab,
     };
   }
 
@@ -259,7 +273,6 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
   }
 
   componentDidMount() {
-    this.initTabs();
     this.loadFormDescription();
   }
 
@@ -424,7 +437,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
         this.onAfterDeleteRecord(saveResponse);
       },
       (err: any) => {
-        alert('An error ocured while deleting the record.');
+        this.setState({deletingRecord: false});
       }
     );
   }
@@ -445,20 +458,6 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
   onAfterFormInitialized() {
   }
 
-  changeTab(changeTabName: string) {
-    let tabs: any = {};
-
-    Object.keys(this.state.tabs).map((tabName: string) => {
-      tabs[tabName] = {
-        active: tabName == changeTabName
-      };
-    });
-
-    this.setState({
-      tabs: tabs
-    });
-  }
-
   closeForm() {
     if (this.props.onClose) {
       this.props.onClose();
@@ -466,135 +465,101 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     }
   }
 
-  /*
-    * Initialize form tabs is are defined
-    */
-  initTabs() {
-    if (this.state.content?.tabs == undefined) return;
-
-    let tabs: any = {};
-    let firstIteration: boolean = true;
-
-    Object.keys(this.state.content?.tabs).map((tabName: string) => {
-      tabs[tabName] = {
-        active: firstIteration
-      };
-
-      firstIteration = false;
-    });
-
-    this.setState({
-      tabs: tabs
-    });
-  }
-
-  /**
-   * Render tab
-   */
-  renderContent(): JSX.Element {
-    // if (this.state.description?.inputs == null) {
-    //   return adiosError(`No inputs specified for ${this.props.model}. Did the controller return definition of inputs?`);
-    // }
-
-    let content = <></>;
-
-    if (this.state.content?.tabs) {
-      let tabs: any = Object.keys(this.state.content.tabs).map((tabName: string) => {
-        return this.renderTabs(tabName, this.state.content?.tabs[tabName]);
-      })
-
-      content = tabs;
-    } else {
-      content = this.renderTabs("default", this.state.content);
-    }
-
-    return <div className={"form-content " + (this.state.isInitialized ? "initialized" : "not-initialized")}>{content}</div>
-  }
-
-  /*
-    * Render tab content
-    * If tab is not set, use default tabName else use activated one
-    */
-  renderTabs(tabName: string, content: any) {
-    if (
-      tabName == "default"
-      || (this.state.tabs && this.state.tabs[tabName]['active'])
-    ) {
-
-      let key = 0;
-
-      return (
-        <div
-          key={tabName}
+  renderTopMenu(): null|JSX.Element {
+    if (this.state.tabs && Object.keys(this.state.tabs).length > 1) {
+      const tabs = this.state.tabs ?? {};
+      const activeTab = this.state.activeTab ?? 'default';
+      return <>{Object.keys(tabs).map((i: any) => {
+        return <button
+          key={i}
+          className={"btn " + (activeTab == i ? "btn-primary" : "btn-transparent")}
+          onClick={() => { this.setState({activeTab: i}); }}
         >
-          {content != null
-            ? Object.keys(content).map((contentArea: string) => {
-              return this._renderContentItem(key++, contentArea, content[contentArea]);
-            })
-            : this.state.record != null ? (
-              Object.keys(this.state.description?.inputs ?? {}).map((inputName: string) => {
-                return this.inputWrapper(inputName);
-              })
-            ) : ''
-          }
-        </div>
-      );
+          {tabs[i].icon ? <span className="icon"><i className={tabs[i].icon}></i></span> : null}
+          <span className="text">{tabs[i].title}</span>
+        </button>;
+      })}</>;
     } else {
-      return <></>;
+      return null;
     }
   }
 
-  /**
-   * Render content item
-   */
-  _renderContentItem(key: number, contentItemArea: string, contentItemParams: undefined | string | Object | Array<string>): JSX.Element {
-    if (contentItemParams == undefined) return <b style={{color: 'red'}}>Content item params are not defined</b>;
-
-    let contentItemKeys = Object.keys(contentItemParams);
-    if (contentItemKeys.length == 0) return <b style={{color: 'red'}}>Bad content item definition</b>;
-
-    let contentItemName = contentItemArea == "inputs"
-      ? contentItemArea : contentItemKeys[0];
-
-    let contentItem: JSX.Element | null;
-
-    switch (contentItemName) {
-      case 'input':
-        contentItem = this.inputWrapper(contentItemParams['input'] as string);
-        break;
-      case 'inputs':
-        //@ts-ignore
-        contentItem = (contentItemParams['inputs'] as Array<string>).map((inputName: string) => {
-          return this.inputWrapper(inputName)
-        });
-        break;
-      case 'html':
-        contentItem = (<div dangerouslySetInnerHTML={{__html: contentItemParams['html']}}/>);
-        break;
+  renderTemplateElement(elRenderer: string, elData: any): JSX.Element {
+    switch (elRenderer) {
+      case 'form.columns':
+        if (!elData.props) elData.props = {};
+        elData.props.className = (elData.props?.className ?? '') + ' flex gap-2 flex-col md:flex-row';
+        return React.createElement('div', elData.props, this.renderFromTemplate(elData.columns));
+      break;
+      case 'form.column':
+        if (!elData.props) elData.props = {};
+        elData.props.className = (elData.props?.className ?? '') + ' w-full flex gap-2 flex-col';
+        return React.createElement('div', elData.props, this.renderFromTemplate(elData.items));
+      break;
+      case 'form.text':
+        return <div>{elData}</div>;
+      break;
+      case 'form.divider':
+        return this.divider(elData.text);
+      break;
+      case 'form.input':
+        return this.inputWrapper(elData.input);
+      break;
       default:
-        contentItem = globalThis.app.renderReactElement(
-          contentItemName,
-          {
-            ...contentItemParams[contentItemName],
-            ...{
-              parentRecordId: this.state.id,
-              parentFormModel: this.props.model,
-            }
-          }
-        );
+        return <>Unknown element renderer: {elRenderer}</>;
+      break;
+    }
+  }
 
-        if (contentItem !== null) {
-          this.components.push(contentItem);
-        }
+  renderFromTemplate(template: any): Array<JSX.Element> {
+    let content: Array<JSX.Element> = [];
+    Object.keys(template).map((elDefinition: string) => {
+      let tmp = elDefinition.split('#');
+      let elRenderer = tmp[0] ?? '';
+      let elId = tmp[1] ?? '';
+      let elData = template[elDefinition] ?? null;
 
-        break;
+      content.push(this.renderTemplateElement(elRenderer, { elId, ...elData }));
+    });
+
+    return content;
+  }
+
+  renderTab(tab: string): null|JSX.Element {
+    let template: any = {};
+
+    if (this.state.description?.ui?.templateJson) {
+      try {
+        template = JSON.parse(this.state.description?.ui?.templateJson);
+      } catch(ex) {
+        console.error('Failed to render form from template.');
+        console.error(this.state.description?.ui?.templateJson);
+        return <div>Failed to render form from template. Check console for more details.</div>;
+      }
+    } else {
+      template = null;
     }
 
-    return (
-      <div key={key} style={{gridArea: contentItemArea}}>
-        {contentItem}
-      </div>
-    );
+    let tabTemplate = template && template.tabs && template.tabs[tab] ? template.tabs[tab] : null;
+
+    if (tab == 'default' && !tabTemplate) {
+      let tabInputs = {};
+
+      Object.keys(this.state.description?.inputs ?? {}).map((inputName: string) => {
+        tabInputs['form.input#' + inputName] = {input: inputName};
+      });
+      tabTemplate = {'form.column': { items: tabInputs } };
+    }
+
+    //@ts-ignore
+    return this.renderFromTemplate(tabTemplate);
+  }
+
+  /**
+   * Render content
+   */
+  renderContent(): null|JSX.Element {
+    return this.renderTab(this.state.activeTab ?? 'default');
   }
 
   getInputProps(inputName: string, customInputProps?: any): InputProps {
@@ -607,8 +572,8 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     // delete customInputPropsWithoutOnchange.onChange;
 
     let value = null;
-    if (record.id > 0) value = record[inputName];
-    else value = formDescription.defaultValues ? formDescription.defaultValues[inputName] : null;
+    if (this.state.updatingRecord) value = record[inputName];
+    else value = record[inputName] ?? (formDescription.defaultValues ? formDescription.defaultValues[inputName] : null);
 
     return {
       inputName: inputName,
@@ -699,7 +664,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     return <div className="divider"><div><div><div></div></div><div><span>{content}</span></div></div></div>;
   }
 
-  renderSaveButton(): JSX.Element {
+  renderSaveButton(): null|JSX.Element {
     let id = this.state.id ? this.state.id : 0;
     let showButton = 
       this.state.description?.ui?.showSaveButton
@@ -713,21 +678,21 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
             <span className="icon"><i className="fas fa-save"></i></span>
             <span className="text">
               {this.state.description?.ui?.saveButtonText ?? this.translate("Save", 'ADIOS\\Core\\Loader::Components\\Form')}
-              {this.state.recordChanged ? ' *' : ''}
             </span>
+            {this.state.recordChanged ? <span className="text">*</span> : null}
           </> : <>
             <span className="icon"><i className="fas fa-plus"></i></span>
             <span className="text">
               {this.state.description?.ui?.addButtonText ?? this.translate("Add", 'ADIOS\\Core\\Loader::Components\\Form')}
-              {this.state.recordChanged ? ' *' : ''}
             </span>
+            {this.state.recordChanged ? <span className="text">*</span> : null}
           </>
         }
       </button> : null}
     </>;
   }
 
-  renderCopyButton(): JSX.Element {
+  renderCopyButton(): null|JSX.Element {
     let id = this.state.id ? this.state.id : 0;
 
     return <>
@@ -741,7 +706,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     </>;
   }
 
-  renderDeleteButton(): JSX.Element {
+  renderDeleteButton(): null|JSX.Element {
     return <>
       {this.state.updatingRecord && this.state.description?.ui?.showDeleteButton && this.state.permissions.canDelete ? <button
         onClick={() => {
@@ -753,10 +718,14 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
             }
           }
         }}
-        className={"btn " + (this.state.deletingRecord ? "font-bold" : "") + " " + (this.state.deleteButtonDisabled ? "btn-light" : "btn-delete")}
+        className={
+          "btn "
+          + (this.state.deletingRecord ? "font-bold" : "") + " " + (this.state.deleteButtonDisabled ? "btn-light" : "btn-delete")
+          + " hidden md:flex"
+        }
       >
         <span className="icon"><i className="fas fa-trash-alt"></i></span>
-        <span className="text">
+        <span className="text text-nowrap">
           {this.state.deletingRecord ?
             this.translate("Confirm delete", 'ADIOS\\Core\\Loader::Components\\Form')
             : this.state.description?.ui?.deleteButtonText ?? this.translate("Delete", 'ADIOS\\Core\\Loader::Components\\Form')
@@ -766,7 +735,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     </>;
   }
 
-  renderPrevRecordButton(): JSX.Element {
+  renderPrevRecordButton(): null|JSX.Element {
     const prevId = this.state?.prevId ?? 0;
 
     return (
@@ -783,7 +752,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     );
   }
 
-  renderNextRecordButton(): JSX.Element {
+  renderNextRecordButton(): null|JSX.Element {
     const nextId = this.state?.nextId ?? 0;
 
     return (
@@ -800,7 +769,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     );
   }
 
-  renderEditButton(): JSX.Element {
+  renderEditButton(): null|JSX.Element {
     return <>
       {this.state.permissions.canUpdate ? <button
         onClick={() => this.setState({ isInlineEditing: true })}
@@ -812,7 +781,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     </>;
   }
 
-  renderCloseButton(): JSX.Element {
+  renderCloseButton(): null|JSX.Element {
     return (
       <button
         className="btn btn-close"
@@ -828,18 +797,18 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     );
   }
 
-  renderHeaderLeft(): JSX.Element {
+  renderHeaderLeft(): null|JSX.Element {
     return <>{this.state.isInlineEditing ? this.renderSaveButton() : this.renderEditButton()}</>;
   }
 
-  renderHeaderRight(): JSX.Element {
+  renderHeaderRight(): null|JSX.Element {
     return <>
       {this.renderDeleteButton()}
       {this.props.showInModal ? this.renderCloseButton() : null}
     </>;
   }
 
-  renderFooter(): JSX.Element {
+  renderFooter(): null|JSX.Element {
     const prevId = this.state?.prevId ?? 0;
     const nextId = this.state?.nextId ?? 0;
 
@@ -853,7 +822,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     </>;
   }
 
-  renderSubTitle(): JSX.Element {
+  renderSubTitle(): null|JSX.Element {
     let subTitle = this.state.description?.ui?.subTitle;
     if (subTitle) {
       return <small>{subTitle}</small>;
@@ -862,7 +831,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
     }
   }
 
-  renderTitle(): JSX.Element {
+  renderTitle(): null|JSX.Element {
     let title = this.state.description?.ui?.title ??
       (this.state.updatingRecord
         ? this.translate('Record', 'ADIOS\\Core\\Loader::Components\\Form') + ' #' + (this.state.record?.id ?? '-')
@@ -913,6 +882,7 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
       const formTitle = this.renderTitle();
       const formContent = (warningsOrErrors ? warningsOrErrors : this.renderContent());
       const formFooter = this.renderFooter();
+      const formTopMenu = (this.state.isInitialized ? this.renderTopMenu() : null);
       const headerLeft = (warningsOrErrors ? null : this.renderHeaderLeft());
       const headerRight = (warningsOrErrors ? this.renderCloseButton() : this.renderHeaderRight());
 
@@ -923,7 +893,10 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
             <div className="modal-header-title">{formTitle}</div>
             <div className="modal-header-right">{headerRight}</div>
           </div>
-          <div className="modal-body">{formContent}</div>
+          {formTopMenu ? <div className="modal-top-menu">{formTopMenu}</div> : null}
+          <div className="modal-body">
+            {formContent}
+          </div>
           {formFooter ? <div className="modal-footer">{formFooter}</div> : null}
         </>;
       } else {
@@ -934,7 +907,10 @@ export default class Form<P, S> extends TranslatedComponent<FormProps, FormState
               <div className="form-header-title">{formTitle}</div>
               <div className="form-header-right">{headerRight}</div>
             </div>
-            <div className="form-body">{formContent}</div>
+            {formTopMenu ? <div className="form-top-menu">{formTopMenu}</div> : null}
+            <div className="form-body">
+              {formContent}
+            </div>
             {formFooter ? <div className="form-footer">{formFooter}</div> : null}
           </div>
         </>;

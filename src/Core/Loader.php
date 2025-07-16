@@ -22,7 +22,7 @@ spl_autoload_register(function ($class) {
   }
 
   if (str_starts_with($class, $appNamespace . '/')) {
-    @include($app->config->getAsString('srcDir') . '/' . str_replace($appNamespace . '/', '', $class) . '.php');
+    @include($app->config->getAsString('srcFolder') . '/' . str_replace($appNamespace . '/', '', $class) . '.php');
   }
 
 });
@@ -68,7 +68,7 @@ class Loader
   public \ADIOS\Core\Logger $logger;
   public \ADIOS\Core\Locale $locale;
   public \ADIOS\Core\Router $router;
-  public \ADIOS\Core\Email $email;
+  // public \ADIOS\Core\Email $email;
   public \ADIOS\Core\Permissions $permissions;
   public \ADIOS\Core\Test $test;
   public \ADIOS\Core\Auth $auth;
@@ -257,8 +257,8 @@ class Loader
   {
     if (class_exists('\\Twig\\Environment')) {
       $twigLoader = new \Twig\Loader\FilesystemLoader();
-      $twigLoader->addPath($this->config->getAsString('srcDir'));
-      $twigLoader->addPath($this->config->getAsString('srcDir'), 'app');
+      $twigLoader->addPath($this->config->getAsString('srcFolder'));
+      $twigLoader->addPath($this->config->getAsString('srcFolder'), 'app');
 
       $this->twig = new \Twig\Environment($twigLoader, array(
         'cache' => false,
@@ -654,7 +654,7 @@ class Loader
     } catch (\ADIOS\Core\Exceptions\NotEnoughPermissionsException $e) {
       $message = $e->getMessage();
       if ($this->auth->isUserInSession()) {
-        $message .= " Hint: Sign out and sign in again. {$this->config->getAsString('rootUrl')}?sign-out";
+        $message .= " Hint: Sign out at {$this->config->getAsString('rootUrl')}?sign-out and sign in again or check your permissions.";
       }
       return $this->renderFatal($message, false);
       // header('HTTP/1.1 401 Unauthorized', true, 401);
@@ -775,7 +775,8 @@ class Loader
     return $this->renderFatal($message, true);
   }
 
-  public function renderExceptionHtml($exception) {
+  public function renderExceptionHtml($exception, array $args = []): string
+  {
 
     $traceLog = "";
     foreach ($exception->getTrace() as $item) {

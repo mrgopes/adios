@@ -345,6 +345,13 @@ export default class Table<P, S> extends TranslatedComponent<TableProps, TableSt
     return tableProps;
   }
 
+  reload() {
+    this.setState({isInitialized: false}, () => {
+      this.loadTableDescription();
+      this.loadData();
+    });
+  }
+
   loadTableDescription(successCallback?: (params: any) => void) {
 
     if (this.props.descriptionSource == 'props') return;
@@ -550,7 +557,7 @@ export default class Table<P, S> extends TranslatedComponent<TableProps, TableSt
         onClick={() => this.onAddClick()}
       >
         <span className="icon"><i className="fas fa-plus"/></span>
-        {this.state.description?.ui?.addButtonText ? <span className="text">{this.state.description?.ui?.addButtonText}</span> : null}
+        {this.state.description?.ui?.addButtonText ? <span className="text text-nowrap">{this.state.description?.ui?.addButtonText}</span> : null}
       </button>
     );
   }
@@ -1093,7 +1100,7 @@ export default class Table<P, S> extends TranslatedComponent<TableProps, TableSt
         {this.state.description?.ui?.showHeader ? this.renderHeader() : null}
         {this.state.description?.ui?.showFilter ? this.renderFilter() : null}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-col md:flex-row overflow-x max-w-[100vw]">
           <div className="table-sidebar-filter">
             {this.state.description?.ui?.showSidebarFilter ? this.renderSidebarFilter() : null}
           </div>
@@ -1112,7 +1119,7 @@ export default class Table<P, S> extends TranslatedComponent<TableProps, TableSt
     try {
       globalThis.app.setTranslationContext(this.translationContext);
 
-      if (!this.state.data || !this.state.description?.columns) {
+      if (!this.state.data) {
         return <ProgressBar mode="indeterminate" style={{ height: '8px' }}></ProgressBar>;
       }
 
