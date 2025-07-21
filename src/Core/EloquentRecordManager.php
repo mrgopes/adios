@@ -8,9 +8,8 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
   public $timestamps = false;
   public static $snakeAttributes = false;
   
-
-  public ?\ADIOS\Core\Loader $app;
-  public ?\ADIOS\Core\Model $model;
+  public \ADIOS\Core\Loader $app;
+  public \ADIOS\Core\Model $model;
 
   // /** What relations to be included in loaded record. If null, default relations will be selected. */
   // /** @property array<string> */
@@ -21,8 +20,8 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
   public function __construct(array $attributes = [])
   {
     parent::__construct($attributes);
-    $this->app = null;
-    $this->model = null;
+    // $this->app = null;
+    // $this->model = null;
   }
 
   // public function getRelationsToRead(): array
@@ -238,6 +237,19 @@ class EloquentRecordManager extends \Illuminate\Database\Eloquent\Model implemen
             $value = (float) $m[2];
 
             $query->where($columnName, $operation, $value);
+          } else if (in_array($column->getType(), ['date', 'datetime', 'time'])) {
+            if (is_array($columnSearch[$columnName])) {
+              if (count($columnSearch[$columnName]) == 1) {
+                $from = $to = $columnSearch[$columnName][0];
+              } else if (count($columnSearch[$columnName]) == 2) {
+                list($from, $to) = $columnSearch[$columnName];
+              }
+
+              $query->having($columnName, '>=', date('Y-m-d 00:00:00', strtotime((string) $from)));
+              $query->having($columnName, '<=', date('Y-m-d 23:59:59', strtotime((string) $to)));
+            }
+          } else if (in_array($column->getType(), ['boolean'])) {
+            $query->having($columnName, $columnSearch[$columnName] === "true");
           } else {
             $query->having($columnName, 'like', "%{$columnSearch[$columnName]}%");
           }
